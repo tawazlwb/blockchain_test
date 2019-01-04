@@ -26,7 +26,7 @@ class Block {
 class BlockChain {
     constructor(){
         this.chain = [this.createGenesisBlock()];
-        this.difficulty = 2;
+        this.difficulty = 5;
     }
 
     createGenesisBlock() {
@@ -57,16 +57,10 @@ class BlockChain {
 }
 
 let kheiryCoin = new BlockChain();
+console.log('Mining block 1...');
 kheiryCoin.addBlock(new Block(1, "05/01/2019", {amount : 4}));
+
+console.log('Mining block 2...');
 kheiryCoin.addBlock(new Block(2, "06/01/2019", {amount : 14}));
 
-//console.log(JSON.stringify(kheiryCoin, null, 4));
-
-console.log('IS blockchain valid? ' + kheiryCoin.isChainValid());
-
-kheiryCoin.chain[1].data.amount = 100;
-console.log('IS blockchain valid? ' + kheiryCoin.isChainValid());
-
-kheiryCoin.chain[1].data.amount = 110;
-kheiryCoin.chain[1].calculateHash();
-console.log('IS blockchain valid? ' + kheiryCoin.isChainValid());
+console.log(JSON.stringify(kheiryCoin, null, 4));
