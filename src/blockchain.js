@@ -1,10 +1,36 @@
 const SHA256 = require('crypto-js/sha256');
+const EC = require('elliptic').ec;
+const ec = new EC("secp256k1");
 
 class Transaction {
     constructor(fromAddress, toAddress, amount) {
         this.fromAddress = fromAddress;
         this.toAddress = toAddress;
         this.amount = amount;
+    }
+
+    calculateHash(){
+        return SHA256(this.fromAddress + this.toAddress + this.amount).toString();
+    }
+
+    signTransaction(signingKey){
+        if(signingKey.getPublic('hex') !== this.fromAddress){
+            throw new Error('You cannot sign transactions for other wallets!');
+        }
+        const hashTx = this.calculateHash();
+        const sig = signingKey.sign(hashTx, 'base64');
+        this.signature = sig.toDER('hex');
+    }
+    isValid(){
+        debugger;
+        if(this.fromAddress === null) return true;
+
+        if(!this.signature || this.signature.length === 0){
+            throw new Error('No signature in this transaction!');
+        }
+
+        const publicKey = ec.keyFromPublic(this.fromAddress, 'hex');
+        return publicKey.verify(this.calculateHash(), this.signature);
     }
 }
 class Block {
@@ -27,6 +53,15 @@ class Block {
         }
         console.log('Block mined: ' + this.hash);
     }
+
+    hasValidTransactions(){
+        for(const tx of this.transactions){
+            if(!tx.isValid()){
+                return false;
+            }
+        }
+        return true;
+    }
 }
 
 class BlockChain {
@@ -34,11 +69,11 @@ class BlockChain {
         this.chain = [this.createGenesisBlock()];
         this.difficulty = 2;
         this.pendingTransactions = [];
-        this.minigReward = 100;
+        this.miningReward = 100;
     }
 
     createGenesisBlock() {
-        return new Block("04/01/2019", [], "0");
+        return new Block(Date.parse("01 04 2019"), [], "0");
     }
 
     getLatestBlock() {
@@ -47,21 +82,21 @@ class BlockChain {
 
     addBlock(newBlock) {
         newBlock.previousHash = this.getLatestBlock().hash;
-        //newBlock.hash = newBlock.calculateHash();
         newBlock.mineBlock(this.difficulty);
         this.chain.push(newBlock);
     }
 
     minePendingTransactions(miningRewardAddress){
+        const rewardTx = new Transaction(null, miningRewardAddress, this.miningReward);
+        this.pendingTransactions.push(rewardTx);
+
         let block = new Block(Date.now(), this.pendingTransactions, this.getLatestBlock().hash);
         block.mineBlock(this.difficulty);
 
         console.log('Block successfully mined');
         this.chain.push(block);
 
-        this.pendingTransactions = [
-            new Transaction(null, miningRewardAddress, this.minigReward)
-        ];
+        this.pendingTransactions = [];
     }
 
     getBalanceOfAddress(address){
@@ -79,7 +114,13 @@ class BlockChain {
         return balance;
     }
 
-    createTransaction(transaction){
+    addTransaction(transaction){
+        if(!transaction.fromAddress || !transaction.toAddress){
+            throw new Error('Transaction must include from and to address!');
+        }
+        if(!transaction.isValid()){
+            throw new Error('Cannot add invalid transaction to chain!');
+        }
         this.pendingTransactions.push(transaction);
     }
 
@@ -87,7 +128,7 @@ class BlockChain {
         for(let i = 1; i < this.chain.length; i++){
             const currentBlock = this.chain[i];
             const previousBlock = this.chain[i - 1];
-            if(currentBlock.hash !== currentBlock.calculateHash() || currentBlock.previousHash !== previousBlock.hash){
+            if(!currentBlock.hasValidTransactions() || currentBlock.hash !== currentBlock.calculateHash() || currentBlock.previousHash !== previousBlock.hash){
                 return false;
             }
         }
@@ -95,17 +136,6 @@ class BlockChain {
     }
 }
 
-let minerAddress = 'kheiry-address';
-let kheiryCoin = new BlockChain();
-kheiryCoin.createTransaction(new Transaction("address1", "address2", 100));
-kheiryCoin.createTransaction(new Transaction("address2", "address1", 50));
-
-console.log('\nStrart the miner...');
-kheiryCoin.minePendingTransactions(minerAddress);
-console.log('\nBalance of ${minerAddress} ', kheiryCoin.getBalanceOfAddress(minerAddress));
-
-console.log('\nStrart the miner again...');
-kheiryCoin.minePendingTransactions(minerAddress);
-console.log(`\nBalance of ${minerAddress}: `, kheiryCoin.getBalanceOfAddress(minerAddress));
-
-console.log(`\nKHEIRYCOIN:\n${JSON.stringify(kheiryCoin, null, 4)}`);
+module.exports.Transaction = Transaction;
+module.exports.Block = Block;
+module.exports.BlockChain = BlockChain;
